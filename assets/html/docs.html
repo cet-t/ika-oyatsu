@@ -10,7 +10,7 @@
     <header>
       <h1>splapi3 — Discord Embed API</h1>
       <p>
-        Splatoon3 スケジュール情報を Discord OGP 埋め込み用 HTML として返す API
+        Splatoon3 のスケジュール情報や武器抽選結果を Discord 埋め込み用 HTML として返す API
       </p>
     </header>
 
@@ -25,6 +25,7 @@
           からスケジュール情報を取得し、Discord のリンク展開（OGP）に最適化した
           HTML ページを返す。 URL を Discord
           に貼るとステージ画像・ルール名・開催時間がカード表示される。
+          武器抽選にも対応している。
         </p>
         <div class="card">
           <strong>ベースURL</strong>: <code>https://ika.oyatsu.party</code>
@@ -36,7 +37,12 @@
 
         <div class="card">
           <span class="method-get">GET</span><span class="path">/</span>
-          <p class="desc">疎通確認用。<code>"Hello, World!"</code> を返す。</p>
+          <p class="desc">スケジュールの URL Builder を表示する。</p>
+        </div>
+
+        <div class="card">
+          <span class="method-get">GET</span><span class="path">/docs</span>
+          <p class="desc">この仕様書を表示する。</p>
         </div>
 
         <div class="card">
@@ -83,10 +89,15 @@
             パラメータで何回後かを指定。
           </p>
         </div>
+        <div class="card">
+          <span class="method-get">GET</span><span class="path">/weapon</span>
+          <p class="desc">武器をランダムに抽選する。同じ武器が複数回選ばれる場合がある。</p>
+        </div>
       </section>
 
       <section>
         <h2>クエリパラメータ</h2>
+        <p>以下のパラメータはスケジュールと武器抽選のエンドポイントで受け付ける。</p>
         <table>
           <thead>
             <tr>
@@ -99,13 +110,13 @@
           <tbody>
             <tr>
               <td><code>t</code></td>
-              <td>全エンドポイント</td>
+              <td>スケジュール、武器抽選</td>
               <td>u32</td>
               <td>現状サーバー側で未使用（受理されるが出力に影響しない）</td>
             </tr>
             <tr>
               <td><code>n</code>（別名 <code>i</code>）</td>
-              <td><code>/open/next</code>, <code>/regular/next</code></td>
+              <td><code>/open/next</code>, <code>/regular/next</code>, <code>/weapon</code></td>
               <td>u8</td>
               <td>
                 何回先の対戦かを指定。<code>0</code> = 現在開催中（<code
@@ -114,13 +125,21 @@
                 と同じ）、 <code>1</code> = 次回（省略時デフォルト）、<code
                   >2</code
                 >
-                = 次々回 ...
+                = 次々回。現在のスケジュールでは無視される。<code>/weapon</code>
+                では抽選数を指定し、省略時は1、指定値は1〜8に収められる。
               </td>
+            </tr>
+            <tr>
+              <td><code>colour</code>（別名 <code>color</code>, <code>c</code>）</td>
+              <td>スケジュール、武器抽選</td>
+              <td>16進数6桁</td>
+              <td>埋め込みのテーマ色。<code>#</code> を付けずに指定する（例: <code>ff8800</code>）。省略時はルールの既定色、武器抽選では <code>#FFFF10</code>。</td>
             </tr>
           </tbody>
         </table>
         <p class="desc">
-          未知のクエリパラメータが付くとリクエストは拒否される（<code>deny_unknown_fields</code>）。
+          未知のパラメータや不正な値、別名を含む同一パラメータの重複指定は拒否される。
+          <code>u8</code> は0〜255、<code>u32</code> は0〜4294967295の整数。
         </p>
       </section>
 
@@ -129,7 +148,8 @@
         <pre>
 GET /open/next?n=2
 GET /regular/next?i=1
-GET /regular/now</pre
+GET /regular/now
+GET /weapon?n=4&amp;c=00ff00</pre
         >
       </section>
 
@@ -137,7 +157,7 @@ GET /regular/now</pre
         <h2>レスポンス</h2>
         <p>
           <code>Content-Type: text/html</code>。以下の情報を含む OGP
-          メタタグ付き HTML を返す。
+          メタタグ付き HTML を返す。以下はスケジュールの内容。
         </p>
         <table>
           <thead>
@@ -163,24 +183,26 @@ GET /regular/now</pre
               </td>
             </tr>
             <tr>
-              <td><code>og:image</code>（複数）</td>
-              <td>各ステージのサムネイル画像URL</td>
+              <td><code>og:image</code></td>
+              <td>2つのステージ画像を結合した画像のURL</td>
             </tr>
             <tr>
               <td><code>theme-color</code></td>
               <td>
                 ルールに応じた色（ナワバリ: <code>#00ff00</code>、それ以外:
-                <code>#ffa500</code>）
+                <code>#ffa500</code>）。クエリで変更可能。
               </td>
             </tr>
           </tbody>
         </table>
 
+        <p>開催時間は取得元の日時の現地時刻で表示される。武器抽選ではタイトルが「武器抽選」、説明が抽選結果となり、画像は付かない。</p>
+
         <h3>エラー時</h3>
         <p class="desc">
-          対象スケジュールが存在しない、または
-          <code>n</code> が範囲外の場合、本文 <code>"ERROR"</code> を200で返す
-          （上流APIエラーやHTTPステータスでは表現されない点に注意）。
+          スケジュールの取得や画像生成に失敗した場合、または指定位置のスケジュールが存在しない場合は HTTP 500 のエラーページを返す。
+          不正なクエリやスケジュール名は解析時に拒否され、存在しないパスには HTTP 404 のエラーページを返す。
+          武器データを取得できない場合は HTTP 200 で <code>Internal server error</code> を返す。
         </p>
       </section>
 
@@ -227,13 +249,12 @@ GET /regular/now</pre
       <section>
         <h2>データソース</h2>
         <p>
-          上流API: <code>https://spla3.yuu26.com/api/{{mode}}/{{schedule}}</code
+          スケジュール: <code>https://spla3.yuu26.com/api/{mode}/schedule</code
           ><br />
           <code>mode</code> は <code>regular</code> /
           <code>bankara-open</code>
-          のいずれか（本サービスが公開する機能範囲）。<br />
-          <code>schedule</code> は <code>now</code> または
-          <code>schedule</code>（<code>next</code> エンドポイント使用時）。
+          のいずれか。<br />
+          武器: <a href="https://stat.ink/api/v3/weapon">stat.ink 武器API</a>。
         </p>
       </section>
     </main>
@@ -243,7 +264,7 @@ GET /regular/now</pre
         href="https://github.com/cet-t/ika-oyatsu/blob/main/src/main.rs"
         ><code>src/main.rs</code></a
       >
-      より生成）
+      を参照）
       <br />
       <a href="https://ika.oyatsu.party">← URL Builder に戻る</a>
       <br />
