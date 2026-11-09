@@ -2,7 +2,7 @@ use axum::{http::StatusCode, response::Html};
 
 use crate::data::Response;
 
-pub const SITE_URL: &str = "splat.site";
+pub const SITE_URL: &str = "ika.oyatsu.party";
 
 pub fn error_text() -> String {
     // TODO
